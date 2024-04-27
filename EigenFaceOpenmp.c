@@ -55,32 +55,26 @@ void normalizeVector(double *vector, int size) {
 }
 
 void calculateCovariance(double **trainingImages, double **covarianceMatrix, double *meanFace, int numImages, int imageSize) {
-    // Calculate mean face in parallel
-    #pragma omp parallel for
+    // Calculate mean face
     for (int i = 0; i < imageSize; ++i) {
         meanFace[i] = 0;
-        #pragma omp parallel for reduction(+:meanFace[i])
         for (int j = 0; j < numImages; ++j) {
             meanFace[i] += trainingImages[j][i];
         }
         meanFace[i] /= numImages;
     }
 
-    // Subtract mean face from each image in parallel
-    #pragma omp parallel for
+    // Subtract mean face from each image
     for (int i = 0; i < numImages; ++i) {
-        #pragma omp parallel for
         for (int j = 0; j < imageSize; ++j) {
             trainingImages[i][j] -= meanFace[j];
         }
     }
 
-    // Calculate covariance matrix in parallel
-    #pragma omp parallel for
+    // Calculate covariance matrix
     for (int i = 0; i < imageSize; ++i) {
         for (int j = 0; j < imageSize; ++j) {
             covarianceMatrix[i][j] = 0;
-            #pragma omp parallel for reduction(+:covarianceMatrix[i][j])
             for (int k = 0; k < numImages; ++k) {
                 covarianceMatrix[i][j] += trainingImages[k][i] * trainingImages[k][j];
             }
@@ -101,8 +95,7 @@ void performEigenDecomposition(double **matrix, double **eigenvectors, int size,
         exit(EXIT_FAILURE);
     }
 
-    // Extract the eigenvectors in parallel
-    #pragma omp parallel for
+    // Extract the eigenvectors
     for (int i = 0; i < numEigenvectors; ++i) {
         for (int j = 0; j < size; ++j) {
             eigenvectors[i][j] = matrix[j][i];
@@ -119,14 +112,12 @@ double getCurrentTimeInSeconds() {
 int main() {
     omp_set_num_threads(4);
 
-    // Read training images from file
     double **trainingImages = (double **)malloc(NUM_TRAINING_IMAGES * sizeof(double *));
     for (int i = 0; i < NUM_TRAINING_IMAGES; ++i) {
         trainingImages[i] = (double *)malloc(IMAGE_WIDTH * IMAGE_HEIGHT * sizeof(double));
     }
-    readImages(trainingImages, "training_images.txt");
+    readImages(trainingImages, "hand_images.txt");
 
-    // Create space for covariance matrix, eigenfaces, and mean face
     double **covarianceMatrix = (double **)malloc(IMAGE_WIDTH * IMAGE_HEIGHT * sizeof(double *));
     for (int i = 0; i < IMAGE_WIDTH * IMAGE_HEIGHT; ++i) {
         covarianceMatrix[i] = (double *)malloc(IMAGE_WIDTH * IMAGE_HEIGHT * sizeof(double));
@@ -139,31 +130,18 @@ int main() {
 
     double *meanFace = (double *)malloc(IMAGE_WIDTH * IMAGE_HEIGHT * sizeof(double));
 
-    int numTrainingImages = NUM_TRAINING_IMAGES;
-    int imageSize = IMAGE_WIDTH * IMAGE_HEIGHT;
-
-    // Start the timer
     double startTime = getCurrentTimeInSeconds();
 
-    // Calculate covariance matrix
-    calculateCovariance(trainingImages, covarianceMatrix, meanFace, numTrainingImages, imageSize);
+    calculateCovariance(trainingImages, covarianceMatrix, meanFace, NUM_TRAINING_IMAGES, IMAGE_WIDTH * IMAGE_HEIGHT);
+    performEigenDecomposition(covarianceMatrix, eigenfaces, IMAGE_WIDTH * IMAGE_HEIGHT, NUM_EIGENFACES);
 
-    // Perform eigenvalue decomposition to get eigenvectors (eigenfaces)
-    performEigenDecomposition(covarianceMatrix, eigenfaces, imageSize, NUM_EIGENFACES);
-
-    // Normalize the eigenfaces (optional but common step) in parallel
-    #pragma omp parallel for
     for (int i = 0; i < NUM_EIGENFACES; ++i) {
-        normalizeVector(eigenfaces[i], imageSize);
+        normalizeVector(eigenfaces[i], IMAGE_WIDTH * IMAGE_HEIGHT);
     }
 
-    // Stop the timer
     double endTime = getCurrentTimeInSeconds();
-
-    // Print the elapsed time
     printf("Elapsed time: %.4f seconds\n", endTime - startTime);
 
-    // Free allocated memory
     for (int i = 0; i < NUM_TRAINING_IMAGES; ++i) {
         free(trainingImages[i]);
     }
