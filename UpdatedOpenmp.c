@@ -161,4 +161,12 @@ int main() {
     }
     free(covarianceMatrix);
 
-    for (int i = 0; i < NUM
+    for (int i = 0; i < NUM_EIGENFACES; ++i) {
+        free(eigenfaces[i]);
+    }
+    free(eigenfaces);
+
+    free(meanFace);
+
+    return 0;
+}
